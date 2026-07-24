@@ -83,8 +83,16 @@ def validate_youtube_url(url: str) -> bool:
 
 DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 
+# Browser to use for cookie authentication (override with COOKIE_BROWSER env var)
+# Set to empty string to disable cookie usage
+_COOKIE_BROWSER = os.environ.get("COOKIE_BROWSER", "brave")
+if _COOKIE_BROWSER:
+    print(f"[YTClipper] Will use cookies from: {_COOKIE_BROWSER}")
+else:
+    print("[YTClipper] Cookie-based auth disabled. Set COOKIE_BROWSER=brave to enable.")
+
 def get_base_ydl_opts() -> dict:
-    return {
+    opts = {
         "quiet": True,
         "no_warnings": True,
         "nocheckcertificate": True,
@@ -95,6 +103,9 @@ def get_base_ydl_opts() -> dict:
             }
         },
     }
+    if _COOKIE_BROWSER:
+        opts["cookiesfrombrowser"] = (_COOKIE_BROWSER,)
+    return opts
 
 def format_resolution_label(f: dict) -> str:
     """Create a human-readable label for a format."""
