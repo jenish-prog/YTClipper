@@ -81,6 +81,21 @@ YOUTUBE_URL_REGEX = re.compile(
 def validate_youtube_url(url: str) -> bool:
     return bool(YOUTUBE_URL_REGEX.match(url))
 
+DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+
+def get_base_ydl_opts() -> dict:
+    return {
+        "quiet": True,
+        "no_warnings": True,
+        "nocheckcertificate": True,
+        "user_agent": DEFAULT_USER_AGENT,
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android", "ios", "mweb", "web"],
+            }
+        },
+    }
+
 def format_resolution_label(f: dict) -> str:
     """Create a human-readable label for a format."""
     height = f.get("height")
@@ -155,12 +170,8 @@ async def get_video_info(request: VideoURLRequest):
     if not validate_youtube_url(url):
         raise HTTPException(status_code=400, detail="Invalid YouTube URL. Please provide a valid YouTube video link.")
 
-    ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "skip_download": True,
-        "nocheckcertificate": True,
-    }
+    ydl_opts = get_base_ydl_opts()
+    ydl_opts["skip_download"] = True
 
     try:
         loop = asyncio.get_event_loop()
@@ -269,7 +280,8 @@ async def download_video(request: DownloadRequest, background_tasks: BackgroundT
 
     try:
         # First, get format info to determine if we need to merge audio
-        info_opts = {"quiet": True, "no_warnings": True, "skip_download": True, "nocheckcertificate": True}
+        info_opts = get_base_ydl_opts()
+        info_opts["skip_download"] = True
         loop = asyncio.get_event_loop()
         info = await loop.run_in_executor(None, lambda: _extract_info(url, info_opts))
 
@@ -300,40 +312,24 @@ async def download_video(request: DownloadRequest, background_tasks: BackgroundT
             (request.start_time > 0 or request.end_time < (info.get("duration", 0) or 0))
         )
 
+        ydl_opts = get_base_ydl_opts()
+        ydl_opts["outtmpl"] = output_template
+
         if has_video and not has_audio:
             # Video-only: download selected video + best audio and merge
-            format_spec = f"{request.format_id}+bestaudio/best"
-            ydl_opts = {
-                "quiet": True,
-                "no_warnings": True,
-                "nocheckcertificate": True,
-                "format": format_spec,
-                "outtmpl": output_template,
-                "merge_output_format": "mp4",
-            }
+            ydl_opts["format"] = f"{request.format_id}+bestaudio/best"
+            ydl_opts["merge_output_format"] = "mp4"
         elif not has_video and has_audio:
             # Audio-only
-            ydl_opts = {
-                "quiet": True,
-                "no_warnings": True,
-                "nocheckcertificate": True,
-                "format": request.format_id,
-                "outtmpl": output_template,
-                "postprocessors": [{
-                    "key": "FFmpegExtractAudio",
-                    "preferredcodec": "mp3",
-                    "preferredquality": "192",
-                }],
-            }
+            ydl_opts["format"] = request.format_id
+            ydl_opts["postprocessors"] = [{
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "mp3",
+                "preferredquality": "192",
+            }]
         else:
             # Has both audio and video
-            ydl_opts = {
-                "quiet": True,
-                "no_warnings": True,
-                "nocheckcertificate": True,
-                "format": request.format_id,
-                "outtmpl": output_template,
-            }
+            ydl_opts["format"] = request.format_id
 
         # If trimming, use yt-dlp's --download-sections to only download the segment
         # This avoids downloading the entire video first
