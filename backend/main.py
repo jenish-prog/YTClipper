@@ -94,8 +94,8 @@ def validate_youtube_url(url: str) -> bool:
 DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 
 # Browser to use for cookie authentication (override with COOKIE_BROWSER env var)
-# Set to empty string to disable cookie usage
-_COOKIE_BROWSER = os.environ.get("COOKIE_BROWSER", "brave")
+# Set to a browser name (e.g. "brave", "chrome") to enable cookie usage locally
+_COOKIE_BROWSER = os.environ.get("COOKIE_BROWSER", "")
 if _COOKIE_BROWSER:
     print(f"[YTClipper] Will use cookies from: {_COOKIE_BROWSER}")
 else:
