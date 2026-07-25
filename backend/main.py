@@ -26,7 +26,10 @@ except ImportError:
     pass
 
 # Fallback: disable SSL verification if certificates are not available
-ssl._create_default_https_context = ssl._create_unverified_context
+try:
+    ssl._create_default_https_context = ssl._create_unverified_context
+except AttributeError:
+    pass
 
 # ─── App Setup ────────────────────────────────────────────────────────────────
 
@@ -34,7 +37,14 @@ app = FastAPI(title="YouTube Downloader API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://127.0.0.1:5173", "http://127.0.0.1:5174", "http://127.0.0.1:5175"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "http://localhost:5175",
+        "http://127.0.0.1:5175",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -401,6 +411,88 @@ async def download_video(request: DownloadRequest, background_tasks: BackgroundT
 def _download(url: str, opts: dict):
     with yt_dlp.YoutubeDL(opts) as ydl:
         ydl.download([url])
+
+
+@app.post("/api/thumbnail")
+async def download_thumbnail(request: VideoURLRequest):
+    """Download and return the video's thumbnail image."""
+    url = request.url.strip()
+
+    if not validate_youtube_url(url):
+        raise HTTPException(status_code=400, detail="Invalid YouTube URL.")
+
+    ydl_opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        "nocheckcertificate": True,
+    }
+
+    try:
+        loop = asyncio.get_event_loop()
+        info = await loop.run_in_executor(None, lambda: _extract_info(url, ydl_opts))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Could not fetch video info: {str(e)}")
+
+    if not info:
+        raise HTTPException(status_code=404, detail="Could not retrieve video information.")
+
+    # Get the best thumbnail URL
+    thumbnails = info.get("thumbnails", [])
+    thumbnail_url = info.get("thumbnail", "")
+    if thumbnails:
+        best_thumb = max(thumbnails, key=lambda t: (t.get("width", 0) or 0) * (t.get("height", 0) or 0))
+        thumbnail_url = best_thumb.get("url", thumbnail_url)
+
+    if not thumbnail_url:
+        raise HTTPException(status_code=404, detail="No thumbnail available for this video.")
+
+    # Download the thumbnail image
+    import urllib.request
+
+    try:
+        req = urllib.request.Request(thumbnail_url, headers={"User-Agent": "Mozilla/5.0"})
+        # Try with default SSL first, fall back to no-verify if needed
+        try:
+            ctx = ssl.create_unverified_context()
+        except AttributeError:
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+        thumb_response = await loop.run_in_executor(None, lambda: urllib.request.urlopen(req, context=ctx))
+        image_data = await loop.run_in_executor(None, thumb_response.read)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to download thumbnail: {str(e)}")
+
+    # Determine filename
+    video_title = re.sub(r'[^\w\s-]', '', info.get("title", "thumbnail")).strip()
+    video_title = re.sub(r'\s+', '_', video_title)
+
+    # Detect content type from URL
+    content_type = "image/jpeg"
+    ext = "jpg"
+    if ".webp" in thumbnail_url:
+        content_type = "image/webp"
+        ext = "webp"
+    elif ".png" in thumbnail_url:
+        content_type = "image/png"
+        ext = "png"
+
+    filename = f"{video_title}_thumbnail.{ext}"
+    ascii_title = re.sub(r'[^\x00-\x7F]+', '_', video_title).strip('_')
+    if not ascii_title:
+        ascii_title = "thumbnail"
+    ascii_filename = f"{ascii_title}_thumbnail.{ext}"
+    encoded_filename = quote(filename)
+
+    return StreamingResponse(
+        iter([image_data]),
+        media_type=content_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{ascii_filename}"; filename*=UTF-8\'\'{encoded_filename}',
+            "Access-Control-Expose-Headers": "Content-Disposition",
+        },
+    )
 
 
 # ─── Startup / Shutdown ──────────────────────────────────────────────────────

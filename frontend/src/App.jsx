@@ -172,7 +172,7 @@ export default function App() {
         {/* Video info sections (shown after fetch) */}
         {videoInfo && !isLoading && (
           <>
-            <VideoPreview videoInfo={videoInfo} />
+            <VideoPreview videoInfo={videoInfo} videoUrl={videoUrl} />
 
             <QualitySelector
               formats={videoInfo.formats}

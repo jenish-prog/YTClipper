@@ -400,6 +400,47 @@ body {
   gap: var(--space-xs);
 }
 
+/* ─── Thumbnail Download Button ───────────────────────────────────────────── */
+.thumbnail-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(124, 92, 252, 0.12);
+  border: 1.5px solid rgba(124, 92, 252, 0.25);
+  border-radius: var(--radius-full);
+  color: var(--accent-secondary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  white-space: nowrap;
+}
+
+.thumbnail-download-btn:hover:not(:disabled) {
+  background: rgba(124, 92, 252, 0.2);
+  border-color: var(--accent-primary);
+  color: white;
+  box-shadow: 0 0 16px rgba(124, 92, 252, 0.25);
+  transform: translateY(-1px);
+}
+
+.thumbnail-download-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.thumbnail-download-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.thumb-btn-icon {
+  font-size: var(--font-size-sm);
+  line-height: 1;
+}
+
 /* ─── Section Titles ──────────────────────────────────────────────────────── */
 .section-title {
   font-size: var(--font-size-sm);
