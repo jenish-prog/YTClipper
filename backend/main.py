@@ -109,7 +109,7 @@ def get_base_ydl_opts() -> dict:
         "user_agent": DEFAULT_USER_AGENT,
         "extractor_args": {
             "youtube": {
-                "player_client": ["android", "ios", "mweb", "web"],
+                "player_client": ["android_vr", "web", "android", "ios", "mweb"],
             }
         },
     }
